@@ -78,7 +78,7 @@ const GroupEventCreate: React.FC<Props> = ({
         </label>
         <input
           id="eventDate"
-          type="datetime-local"
+          type="datetime-locl"
           value={eventDate}
           onChange={(e) => setEventDate(e.target.value)}
           min={getCurrentDateTime()}
