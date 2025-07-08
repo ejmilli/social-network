@@ -18,12 +18,13 @@ export default function Page() {
   );
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [currentPage, setCurrentPage] = useState<PageType>("home");
+  const [currentPage, setCurrentPage] = useState<PageType>("home"); // Always start with home
 
   const handleLogout = async () => {
     try {
       const res = await fetch("/api/logout", {
         method: "POST",
+        credentials: "include",
       });
 
       if (res.ok) {
@@ -46,15 +47,22 @@ export default function Page() {
     setCurrentPage("login");
   };
 
+  const handleNavigate = (page: PageType) => {
+    // Prevent navigation to protected pages if not logged in
+    if (!isLoggedIn && ["posts", "profile", "groups"].includes(page)) {
+      setCurrentPage("login");
+      return;
+    }
+    setCurrentPage(page);
+  };
+
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const res = await fetch("/api/me");
+        const res = await fetch("/api/me", { credentials: "include" });
         if (res.ok) {
           setIsLoggedIn(true);
-          if (currentPage === "home") {
-            setCurrentPage("posts");
-          }
+          // Don't automatically redirect to posts - let user choose
         } else {
           setIsLoggedIn(false);
         }
@@ -67,11 +75,13 @@ export default function Page() {
 
     checkAuthStatus();
 
-    fetch("/api/categories")
+    // Fetch categories
+    fetch("/api/categories", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setCategories(data.data);
-      });
+      })
+      .catch((error) => console.error("Error fetching categories:", error));
   }, []);
 
   const renderCurrentPage = () => {
@@ -134,7 +144,7 @@ export default function Page() {
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
         currentPage={currentPage}
-        onNavigate={setCurrentPage}
+        onNavigate={handleNavigate}
       />
       <main className="main-content">{renderCurrentPage()}</main>
     </>
