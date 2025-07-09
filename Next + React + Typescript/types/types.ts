@@ -24,7 +24,8 @@ export type Comment = {
   post_id: number;
   content: string;
   author: string;
-  votes: number
+  nickname: string; // Added this field
+  votes: number;
   created_at: string;
 };
 
@@ -38,6 +39,8 @@ export type User = {
   avatar?: string;
   nickname: string;
   about_me?: string;
+  is_private?: boolean; // Added this field that UserList component expects
+  created_at: string; // Added this field that UserList component expects
 };
 
 export type ProfileData = {
