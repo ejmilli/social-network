@@ -3,10 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	db "social-network/backend/pkg/db/queries"
-	"social-network/backend/pkg/utils"
 	"strconv"
 	"strings"
+	db "social-network/backend/pkg/db/queries"
+	"social-network/backend/pkg/utils"
 )
 
 // SendGroupMessage handles sending a message to a group chat
@@ -67,10 +67,10 @@ func SendGroupMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Return success response with the message info
 	response := map[string]interface{}{
-		"success":     true,
-		"group_id":    req.GroupID,
-		"sender_id":   userID,
-		"content":     strings.TrimSpace(req.Content),
+		"success":    true,
+		"group_id":   req.GroupID,
+		"sender_id":  userID,
+		"content":    strings.TrimSpace(req.Content),
 		"sender_name": user.Nickname,
 	}
 

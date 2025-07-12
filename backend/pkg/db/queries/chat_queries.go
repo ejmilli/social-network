@@ -138,14 +138,14 @@ func GetLatestGroupMessage(groupID int) (*models.GroupMessage, error) {
 		ORDER BY gm.sent_at DESC
 		LIMIT 1
 	`, groupID).Scan(&msg.ID, &msg.GroupID, &msg.SenderID, &msg.Content, &msg.CreatedAt, &msg.SenderName)
-
+	
 	if err == sql.ErrNoRows {
 		return nil, nil // No messages found
 	}
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return &msg, nil
 }
 
@@ -164,10 +164,10 @@ func GetGroupMessageByID(messageID int) (*models.GroupMessage, error) {
 		LEFT JOIN users u ON gm.user_id = u.id
 		WHERE gm.id = ?
 	`, messageID).Scan(&msg.ID, &msg.GroupID, &msg.SenderID, &msg.Content, &msg.CreatedAt, &msg.SenderName)
-
+	
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return &msg, nil
 }

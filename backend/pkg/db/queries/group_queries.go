@@ -540,3 +540,44 @@ func GetAllGroupsWithUserStatus(userID int, limit, offset int) ([]models.Group, 
 
 	return groups, nil
 }
+
+// GetAllUsersForInvitation returns all users except the current user for invitation purposes
+func GetAllUsersForInvitation(currentUserID int) ([]models.User, error) {
+	query := `
+		SELECT id, nickname, email, first_name, last_name
+		FROM users 
+		WHERE id != ?
+		ORDER BY nickname
+	`
+
+	rows, err := sqlite.GetDB().Query(query, currentUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(&user.ID, &user.Nickname, &user.Email, &user.FirstName, &user.LastName)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// IsUserGroupMember checks if a user is a member of a group
+func IsUserGroupMember(userID, groupID int) (bool, error) {
+	var count int
+	err := sqlite.GetDB().QueryRow(`
+		SELECT COUNT(*) FROM group_members 
+		WHERE user_id = ? AND group_id = ?
+	`, userID, groupID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
