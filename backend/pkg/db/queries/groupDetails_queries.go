@@ -20,15 +20,23 @@ func InsertGroupPost(tx *sql.Tx, userID, groupID int, title, content string) (in
 	return postID, err
 }
 
+// AddGroupPostImage adds an image to a group post
+func AddGroupPostImage(tx *sql.Tx, groupPostID int64, path string, pos int) error {
+	_, err := tx.Exec(`INSERT INTO group_post_images(group_post_id, image_path, position) VALUES(?,?,?)`, groupPostID, path, pos)
+	return err
+}
+
 // GetGroupPosts returns posts for a specific group
 func GetGroupPosts(groupID, limit, offset int) ([]models.GroupPost, error) {
 	query := `
 		SELECT gp.id, gp.group_id, gp.user_id, u.nickname, gp.title, gp.content, 
 			   gp.created_at, COALESCE(gp.votes, 0) as votes,
-			   GROUP_CONCAT(pi.image_path) as image_paths
+			   GROUP_CONCAT(gpi.image_path) as image_paths,
+			   COUNT(DISTINCT gc.id) as comments_count
 		FROM group_posts gp
 		JOIN users u ON gp.user_id = u.id
-		LEFT JOIN post_images pi ON gp.id = pi.post_id
+		LEFT JOIN group_post_images gpi ON gp.id = gpi.group_post_id
+		LEFT JOIN group_comments gc ON gp.id = gc.post_id
 		WHERE gp.group_id = ?
 		GROUP BY gp.id
 		ORDER BY gp.created_at DESC
@@ -47,7 +55,8 @@ func GetGroupPosts(groupID, limit, offset int) ([]models.GroupPost, error) {
 		var imagePathsStr sql.NullString
 
 		err := rows.Scan(&post.ID, &post.GroupID, &post.UserID, &post.Nickname,
-			&post.Title, &post.Content, &post.CreatedAt, &post.Votes, &imagePathsStr)
+			&post.Title, &post.Content, &post.CreatedAt, &post.Votes,
+			&imagePathsStr, &post.CommentsCount)
 		if err != nil {
 			return nil, err
 		}
@@ -132,6 +141,47 @@ func GetGroupEvents(groupID int) ([]models.GroupEvent, error) {
 			return nil, err
 		}
 		event.Responses = responses
+
+		events = append(events, event)
+	}
+
+	return events, nil
+}
+
+// GetGroupEventsForUser returns all events for a group with user-specific response information
+func GetGroupEventsForUser(groupID, userID int) ([]models.GroupEvent, error) {
+	query := `
+		SELECT ge.id, ge.group_id, ge.creator_id, u.nickname as creator_nickname, ge.title, 
+			   ge.description, ge.event_date, ge.created_at,
+			   COALESCE(SUM(CASE WHEN ger.response = 'going' THEN 1 ELSE 0 END), 0) as going_count,
+			   COALESCE(SUM(CASE WHEN ger.response = 'not_going' THEN 1 ELSE 0 END), 0) as not_going_count,
+			   COALESCE(user_ger.response, '') as user_response
+		FROM group_events ge
+		JOIN users u ON ge.creator_id = u.id
+		LEFT JOIN group_event_responses ger ON ge.id = ger.event_id
+		LEFT JOIN group_event_responses user_ger ON ge.id = user_ger.event_id AND user_ger.user_id = ?
+		WHERE ge.group_id = ?
+		GROUP BY ge.id, ge.group_id, ge.creator_id, u.nickname, ge.title, ge.description, ge.event_date, ge.created_at, user_ger.response
+		ORDER BY ge.event_date ASC
+	`
+
+	rows, err := sqlite.GetDB().Query(query, userID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []models.GroupEvent
+	for rows.Next() {
+		var event models.GroupEvent
+
+		err := rows.Scan(&event.ID, &event.GroupID, &event.CreatorID,
+			&event.CreatorNickname, &event.Title, &event.Description,
+			&event.EventDate, &event.CreatedAt, &event.GoingCount,
+			&event.NotGoingCount, &event.UserResponse)
+		if err != nil {
+			return nil, err
+		}
 
 		events = append(events, event)
 	}
@@ -226,13 +276,50 @@ func GetEventDetails(eventID, userID int) (*models.GroupEvent, error) {
 		return nil, err
 	}
 
-	if err == nil {
-		// User has responded
-		userResponse.Nickname = "" // We don't need this for user's own response
-		event.UserResponse = &userResponse
+	return &event, nil
+}
+
+// InsertGroupComment creates a new comment on a group post
+func InsertGroupComment(userID, postID int, content string, image string) (int, error) {
+	var commentID int
+	err := sqlite.GetDB().QueryRow(`
+		INSERT INTO group_comments (post_id, user_id, content, image, created_at)
+		VALUES (?, ?, ?, ?, ?)
+		RETURNING id
+	`, postID, userID, content, image, time.Now()).Scan(&commentID)
+	return commentID, err
+}
+
+// GetGroupComments returns comments for a group post
+func GetGroupComments(postID, limit, offset int) ([]models.GroupComment, error) {
+	query := `
+		SELECT gc.id, gc.post_id, gc.user_id, u.nickname, gc.content, gc.created_at, 
+			   COALESCE(gc.votes, 0) as votes, COALESCE(gc.image, '') as image
+		FROM group_comments gc
+		JOIN users u ON gc.user_id = u.id
+		WHERE gc.post_id = ?
+		ORDER BY gc.created_at ASC
+		LIMIT ? OFFSET ?
+	`
+
+	rows, err := sqlite.GetDB().Query(query, postID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var comments []models.GroupComment
+	for rows.Next() {
+		var comment models.GroupComment
+		err := rows.Scan(&comment.ID, &comment.PostID, &comment.UserID, &comment.Nickname,
+			&comment.Content, &comment.CreatedAt, &comment.Votes, &comment.Image)
+		if err != nil {
+			return nil, err
+		}
+		comments = append(comments, comment)
 	}
 
-	return &event, nil
+	return comments, nil
 }
 
 // Additional helper functions

@@ -3,7 +3,8 @@ package handlers
 import (
 	"log"
 	"net/http"
-	"social-network/backend/pkg/db/queries"
+	db "social-network/backend/pkg/db/queries"
+	"social-network/backend/pkg/models"
 	"social-network/backend/pkg/utils"
 	"strconv"
 	"strings"
@@ -84,7 +85,19 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.Success(w, http.StatusCreated, map[string]any{"message": "Post created successfully", "post_id": postID})
+	// Fetch the complete post data to return
+	post, err := db.GetPostByIDWithVotes(int(postID), uid)
+	if err != nil {
+		log.Printf("Failed to fetch created post: %v", err)
+		utils.Fail(w, http.StatusInternalServerError, "Post created but failed to retrieve")
+		return
+	}
+
+	utils.Success(w, http.StatusCreated, map[string]any{
+		"message": "Post created successfully",
+		"post_id": postID,
+		"post":    post,
+	})
 }
 
 func DeletePostHandler(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +174,10 @@ func FetchAllPosts(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.Fail(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+
+	if posts == nil {
+		posts = []models.Post{}
 	}
 
 	utils.Success(w, http.StatusOK, posts)

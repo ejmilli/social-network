@@ -1,16 +1,17 @@
 package main
 
 import (
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"net/http"
 	"social-network/backend/pkg/chat"
 	"social-network/backend/pkg/db/sqlite"
 	"social-network/backend/pkg/handlers"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
-	database := sqlite.InitDB("backend/database/forum.db")
+	database := sqlite.InitDB("database/forum.db")
 	defer database.Close()
 
 	err := sqlite.ApplyMigrations(database)
@@ -24,7 +25,7 @@ func main() {
 	sqlite.SetDB(database)
 
 	http.Handle("/", http.FileServer(http.Dir("frontend")))
-	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
 	http.HandleFunc("/api/register", handlers.RegisterHandler)
 	http.HandleFunc("/api/login", handlers.LoginHandler)
@@ -43,6 +44,40 @@ func main() {
 	http.Handle("/api/profile", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchProfile)))
 	http.Handle("/api/post/delete", handlers.AuthMiddleware(http.HandlerFunc(handlers.DeletePostHandler)))
 	http.Handle("/api/comment/delete", handlers.AuthMiddleware(http.HandlerFunc(handlers.DeleteCommentHandler)))
+
+	http.Handle("/api/notifications", handlers.AuthMiddleware(http.HandlerFunc(handlers.GetNotificationsHandler)))
+	http.Handle("/api/notifications/read", handlers.AuthMiddleware(http.HandlerFunc(handlers.MarkNotificationReadHandler)))
+
+	// ADD THESE GROUP ROUTES:
+	// Group management routes
+	http.Handle("/api/groups", handlers.AuthMiddleware(http.HandlerFunc(handlers.GroupsHandler)))
+
+	http.Handle("/api/groups/user", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchUserGroups)))
+	http.Handle("/api/groups/details", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchGroupDetails)))
+
+	// Group membership routes
+	http.Handle("/api/groups/invite", handlers.AuthMiddleware(http.HandlerFunc(handlers.InviteToGroupHandler)))
+	http.Handle("/api/groups/request", handlers.AuthMiddleware(http.HandlerFunc(handlers.RequestJoinGroupHandler)))
+	http.Handle("/api/groups/join-request", handlers.AuthMiddleware(http.HandlerFunc(handlers.RequestJoinGroupHandler)))
+	http.Handle("/api/groups/handle-invitation", handlers.AuthMiddleware(http.HandlerFunc(handlers.HandleInvitationHandler)))
+	http.Handle("/api/groups/handle-join-request", handlers.AuthMiddleware(http.HandlerFunc(handlers.HandleJoinRequestHandler)))
+	http.Handle("/api/groups/leave", handlers.AuthMiddleware(http.HandlerFunc(handlers.LeaveGroupHandler)))
+
+	// Group invitations and requests
+	http.Handle("/api/groups/invitations", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchGroupInvitations)))
+	http.Handle("/api/groups/join-requests", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchGroupJoinRequests)))
+
+	// Group events routes
+	http.Handle("/api/groups/events", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchGroupEvents)))
+	http.Handle("/api/groups/events/create", handlers.AuthMiddleware(http.HandlerFunc(handlers.CreateGroupEventHandler)))
+	http.Handle("/api/groups/events/respond", handlers.AuthMiddleware(http.HandlerFunc(handlers.RespondToEventHandler)))
+	http.Handle("/api/groups/events/details", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchEventDetails)))
+
+	// Group posts routes
+	http.Handle("/api/groups/posts", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchGroupPosts)))
+	http.Handle("/api/groups/posts/create", handlers.AuthMiddleware(http.HandlerFunc(handlers.CreateGroupPostHandler)))
+	http.Handle("/api/groups/posts/comments", handlers.AuthMiddleware(http.HandlerFunc(handlers.FetchGroupCommentsHandler)))
+	http.Handle("/api/groups/posts/comments/create", handlers.AuthMiddleware(http.HandlerFunc(handlers.CreateGroupCommentHandler)))
 
 	http.HandleFunc("/ws", manager.ServeWebSocket)
 	http.HandleFunc("/api/chat", chat.HandleChatRequest)
