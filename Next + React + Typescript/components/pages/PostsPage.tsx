@@ -6,24 +6,37 @@ import PostList from "../PostList";
 import CategoryList from "../CategoryList";
 import type { Category, Post } from "../../types/types";
 
-type Props = {
-  categories: Category[];
-  selectedCategoryId: number | null;
-  setSelectedCategoryId: (id: number | null) => void;
-};
-
-const PostsPage = ({
-  categories,
-  selectedCategoryId,
-  setSelectedCategoryId,
-}: Props) => {
+const PostsPage = () => {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
+    null
+  );
   const [viewMode, setViewMode] = useState<"list" | "create" | "single">(
     "list"
   );
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
+  // Fetch categories
+  useEffect(() => {
+    fetch("/api/categories", { credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setCategories(data.data || []);
+        } else {
+          setCategories([]);
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching categories:", error);
+        setCategories([]);
+      });
+  }, []);
+
+  // Fetch posts
   useEffect(() => {
     setLoading(true);
     let url = "/api/posts";
@@ -79,90 +92,160 @@ const PostsPage = ({
   };
 
   const handleCreatePost = () => {
-    setViewMode("create");
+    setShowCreateForm(true);
   };
 
   const handleBackToList = () => {
     setViewMode("list");
     setSelectedPostId(null);
+    setShowCreateForm(false);
   };
 
   const handlePostCreated = (newPost?: Post) => {
     if (newPost) {
-      // Add the new post to the beginning of the posts list
-      setPosts((prevPosts) => [newPost, ...prevPosts]);
-    } else {
-      // Fallback: refresh posts if we don't have the new post data
-      const currentCat = selectedCategoryId;
-      setSelectedCategoryId(null);
-      setTimeout(() => setSelectedCategoryId(currentCat), 0);
+      setPosts((prev) => [newPost, ...prev]);
     }
-    setViewMode("list");
+    setShowCreateForm(false);
   };
 
-  const selectedPost = selectedPostId
-    ? posts.find((p) => p.id === selectedPostId) || null
-    : null;
-
   return (
-    <div className="posts-page">
-      <div className="posts-sidebar">
-        <h2>Categories</h2>
-        <CategoryList
-          categories={categories}
-          selected={selectedCategoryId}
-          onSelect={setSelectedCategoryId}
-        />
-      </div>
+    <div className="posts-page-modern">
+      <div className="posts-page-layout">
+        {/* Sidebar */}
+        <aside className="posts-sidebar-modern">
+          <div className="sidebar-header">
+            <h2>🗂️ Categories</h2>
+            <button
+              className="create-post-sidebar-btn"
+              onClick={handleCreatePost}
+            >
+              ✨ New Post
+            </button>
+          </div>
 
-      <div className="posts-main">
-        {viewMode === "list" && (
-          <>
-            <div className="post-bar">
-              <button onClick={handleCreatePost}>+ Create Post</button>
+          <div className="categories-section">
+            <CategoryList
+              categories={categories}
+              selected={selectedCategoryId}
+              onSelect={setSelectedCategoryId}
+            />
+          </div>
+
+          <div className="stats-section">
+            <h3>📊 Community Stats</h3>
+            <div className="stat-cards">
+              <div className="stat-card">
+                <div className="stat-number">{posts.length}</div>
+                <div className="stat-label">Posts</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">{categories.length}</div>
+                <div className="stat-label">Categories</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">
+                  {posts.reduce((acc, post) => acc + (post.votes || 0), 0)}
+                </div>
+                <div className="stat-label">Total Votes</div>
+              </div>
             </div>
-            <div className="post-feed">
-              <PostList
-                posts={posts}
-                loading={loading}
-                onPostSelect={handlePostSelect}
-                onVote={handleVote}
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="posts-main-modern">
+          {/* Page Header */}
+          <div className="posts-main-header">
+            <div className="header-content">
+              <h1>
+                {selectedCategoryId
+                  ? `${
+                      categories.find((c) => c.id === selectedCategoryId)
+                        ?.name || "Category"
+                    } Posts`
+                  : "🌟 Community Posts"}
+              </h1>
+              <p>
+                {selectedCategoryId
+                  ? "Discover amazing posts in this category"
+                  : "Share your thoughts and connect with the community"}
+              </p>
+            </div>
+            <button className="primary-action-btn" onClick={handleCreatePost}>
+              <span>✨</span>
+              Create Post
+            </button>
+          </div>
+
+          {/* Create Post Form (Inline) */}
+          {showCreateForm && (
+            <div className="create-post-inline">
+              <div className="create-post-header-inline">
+                <h2>✍️ Share Your Thoughts</h2>
+                <button
+                  className="close-create-btn"
+                  onClick={() => setShowCreateForm(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              <PostCreate
+                categories={categories}
+                onSubmit={handlePostCreated}
+                onCancel={() => setShowCreateForm(false)}
               />
             </div>
-          </>
-        )}
+          )}
 
-        {viewMode === "create" && (
-          <div className="create-post-view">
-            <div className="page-header">
-              <button onClick={handleBackToList} className="back-button">
+          {/* Single Post View */}
+          {viewMode === "single" && selectedPostId && (
+            <div className="single-post-view">
+              <button className="back-to-posts-btn" onClick={handleBackToList}>
                 ← Back to Posts
               </button>
-              <h2>Create New Post</h2>
+              <PostSingle postId={selectedPostId} />
             </div>
-            <PostCreate
-              categories={categories}
-              onSubmit={handlePostCreated}
-              onCancel={handleBackToList}
-            />
-          </div>
-        )}
+          )}
 
-        {viewMode === "single" && selectedPost && (
-          <div className="single-post-view">
-            <div className="page-header">
-              <button onClick={handleBackToList} className="back-button">
-                ← Back to Posts
-              </button>
-              <h2>Post Details</h2>
+          {/* Posts List */}
+          {viewMode === "list" && (
+            <div className="posts-content-area">
+              {loading ? (
+                <div className="posts-loading-modern">
+                  <div className="loading-spinner">
+                    <div className="spinner"></div>
+                  </div>
+                  <p>Loading amazing posts...</p>
+                </div>
+              ) : posts.length > 0 ? (
+                <div className="posts-grid-modern">
+                  <PostList
+                    posts={posts}
+                    loading={loading}
+                    onPostSelect={handlePostSelect}
+                    onVote={handleVote}
+                  />
+                </div>
+              ) : (
+                <div className="no-posts-modern">
+                  <div className="no-posts-icon">📝</div>
+                  <h3>No posts yet</h3>
+                  <p>
+                    {selectedCategoryId
+                      ? "No posts found in this category. Be the first to share!"
+                      : "Be the first to share something amazing with the community!"}
+                  </p>
+                  <button
+                    className="create-first-post-btn"
+                    onClick={handleCreatePost}
+                  >
+                    Create First Post
+                  </button>
+                </div>
+              )}
             </div>
-            <PostSingle
-              post={selectedPost}
-              onClose={handleBackToList}
-              onVote={handleVote}
-            />
-          </div>
-        )}
+          )}
+        </main>
       </div>
     </div>
   );
